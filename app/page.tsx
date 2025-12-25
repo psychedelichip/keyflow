@@ -36,6 +36,7 @@ export default function Home() {
 
   const backgroundMusic = useBackgroundMusic(undefined, {
     volume: 0.25,
+    autoPlay: true,
   });
 
   const currentSoundPack = SOUND_PACKS.find(p => p.id === selectedSoundPack);

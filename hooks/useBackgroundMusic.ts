@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 interface UseBackgroundMusicOptions {
   volume?: number;
   loop?: boolean;
+  autoPlay?: boolean;
 }
 
 const BACKGROUND_MUSIC_PATH = '/sounds/Vibing Over Venus.mp3';
@@ -11,10 +12,11 @@ export function useBackgroundMusic(
   musicUrl?: string,
   options: UseBackgroundMusicOptions = {}
 ) {
-  const { volume = 0.3, loop = true } = options;
+  const { volume = 0.3, loop = true, autoPlay = false } = options;
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const autoPlayAttempted = useRef(false);
 
   // Initialize audio element
   useEffect(() => {
@@ -25,6 +27,24 @@ export function useBackgroundMusic(
 
     audio.addEventListener('canplaythrough', () => {
       setIsLoaded(true);
+      // Try autoplay when audio is ready
+      if (autoPlay && !autoPlayAttempted.current) {
+        autoPlayAttempted.current = true;
+        audio.play()
+          .then(() => setIsPlaying(true))
+          .catch(() => {
+            // Autoplay blocked by browser - will start on first user interaction
+            const startOnInteraction = () => {
+              audio.play()
+                .then(() => setIsPlaying(true))
+                .catch(() => {});
+              document.removeEventListener('click', startOnInteraction);
+              document.removeEventListener('keydown', startOnInteraction);
+            };
+            document.addEventListener('click', startOnInteraction, { once: true });
+            document.addEventListener('keydown', startOnInteraction, { once: true });
+          });
+      }
     });
 
     audio.addEventListener('ended', () => {
@@ -44,7 +64,7 @@ export function useBackgroundMusic(
       audio.src = '';
       audioRef.current = null;
     };
-  }, [musicUrl, loop, volume]);
+  }, [musicUrl, loop, volume, autoPlay]);
 
   // Update volume when it changes
   useEffect(() => {
