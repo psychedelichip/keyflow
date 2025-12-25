@@ -16,7 +16,7 @@ export function useBackgroundMusic(
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
-  const autoPlayAttempted = useRef(false);
+  const autoPlayPending = useRef(autoPlay);
 
   // Initialize audio element
   useEffect(() => {
@@ -25,27 +25,11 @@ export function useBackgroundMusic(
     audio.volume = volume;
     audio.preload = 'auto';
 
-    audio.addEventListener('canplaythrough', () => {
+    const handleCanPlay = () => {
       setIsLoaded(true);
-      // Try autoplay when audio is ready
-      if (autoPlay && !autoPlayAttempted.current) {
-        autoPlayAttempted.current = true;
-        audio.play()
-          .then(() => setIsPlaying(true))
-          .catch(() => {
-            // Autoplay blocked by browser - will start on first user interaction
-            const startOnInteraction = () => {
-              audio.play()
-                .then(() => setIsPlaying(true))
-                .catch(() => {});
-              document.removeEventListener('click', startOnInteraction);
-              document.removeEventListener('keydown', startOnInteraction);
-            };
-            document.addEventListener('click', startOnInteraction, { once: true });
-            document.addEventListener('keydown', startOnInteraction, { once: true });
-          });
-      }
-    });
+    };
+
+    audio.addEventListener('canplaythrough', handleCanPlay);
 
     audio.addEventListener('ended', () => {
       if (!loop) {
@@ -72,6 +56,40 @@ export function useBackgroundMusic(
       audioRef.current.volume = volume;
     }
   }, [volume]);
+
+  // Auto-play on first user interaction
+  useEffect(() => {
+    if (!autoPlay || !autoPlayPending.current) return;
+
+    const tryAutoPlay = () => {
+      if (audioRef.current && autoPlayPending.current) {
+        audioRef.current.play()
+          .then(() => {
+            setIsPlaying(true);
+            autoPlayPending.current = false;
+          })
+          .catch(() => {});
+      }
+    };
+
+    // Try immediate autoplay
+    tryAutoPlay();
+
+    // Fallback: start on first user interaction
+    const handleInteraction = () => {
+      tryAutoPlay();
+      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('keydown', handleInteraction);
+    };
+
+    document.addEventListener('click', handleInteraction);
+    document.addEventListener('keydown', handleInteraction);
+
+    return () => {
+      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('keydown', handleInteraction);
+    };
+  }, [autoPlay, isLoaded]);
 
   const play = useCallback(() => {
     if (audioRef.current) {
